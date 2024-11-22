@@ -52,6 +52,27 @@ defined in linker script */
  * @param  None
  * @retval : None
 */
+.equ first, 0xF
+.equ second, 0xFF
+.equ third, 0xFFF
+.equ fourth, 0x1FFF
+.equ silent, 0x1FFF
+
+.equ IOPA_clk_en, 0x04
+.equ IOPB_clk_en, 0x08
+.equ IOPC_clk_en, 0x010
+
+.equ port5posConfig, 0xFF0FFFFF
+.equ port5ConfigOut, 0x00300000 //push pull output 50MHz стр. 171
+
+.equ port3posConfig, 0xFFFF0FFF //floating input
+.equ port3ConfigIn, 0x00004000
+.equ port2posConfig, 0xFFFFF0FF //floating input
+.equ port2ConfigIn, 0x00000400
+.equ port1posConfig, 0xFFFFFF0F //floating input
+.equ port1ConfigIn, 0x00000040
+.equ port0posConfig, 0xFFFFFFF0 //floating input
+.equ port0ConfigIn, 0x00000004
 
   .section .text.Reset_Handler
   .weak Reset_Handler
@@ -59,11 +80,53 @@ defined in linker script */
 Reset_Handler:
  	ldr		r0, =_estack
  	mov		sp, r0          			/* set stack pointer */
+	//start of the program
 
-	ldr		r0, =PERIPH_BB_BASE+ \
+	//Включаем тактирование PA PC
+	LDR R0, =RCC_APB2ENR //адрес регистра, стр. 121
+	LDR R1, [R0] //значение регистра
+	ADD R1, R1, #IOPA_clk_en //	записываем включение тактирования порта A
+	ADD R1, R1, #IOPC_clk_en //	записываем включение тактирования порта B
+	STR R1, [R0] //сохранем значение R1 по адресу, записанному в R0
+
+	//Настраиваем PA5 на режим вывода
+	LDR R0, =GPIOA_CRL //адрес регистра, стр. 171
+	LDR R1, [R0]  //значение регистра
+	AND R1, #port5posConfig //очищаем настройки 5 вывода
+	ORR R1, #port5ConfigOut //задаем конфигурацию
+	STR R1, [R0]
+
+	//Настраиваем PC3 на режим ввода
+	LDR R0, =GPIOC_CRL //адрес регистра, стр. 171
+	LDR R1, [R0]  //значение регистра
+	AND R1, #port2posConfig //очищаем настройки 5 вывода
+	ORR R1, #port2ConfigIn //задаем конфигурацию
+	STR R1, [R0]
+
+	//Настраиваем PC2 на режим ввода
+	LDR R0, =GPIOC_CRL //адрес регистра, стр. 171
+	LDR R1, [R0]  //значение регистра
+	AND R1, #port1posConfig //очищаем настройки 5 вывода
+	ORR R1, #port1ConfigIn //задаем конфигурацию
+	STR R1, [R0]
+
+	//Настраиваем PC1 на режим ввода
+	LDR R0, =GPIOC_CRL //адрес регистра, стр. 171
+	LDR R1, [R0]  //значение регистра
+	AND R1, #port0posConfig //очищаем настройки 5 вывода
+	ORR R1, #port0ConfigIn //задаем конфигурацию
+	STR R1, [R0]
+
+	//Настраиваем PC0 на режим ввода
+	LDR R0, =GPIOC_CRL //адрес регистра, стр. 171
+	LDR R1, [R0]  //значение регистра
+	AND R1, #port3posConfig //очищаем настройки 5 вывода
+	ORR R1, #port3ConfigIn //задаем конфигурацию
+	STR R1, [R0]
+
+	/*ldr		r0, =PERIPH_BB_BASE+ \
 				(RCC_APB2ENR-PERIPH_BASE)*32 + \
-				2*4
-										@ вычисляем адрес для BitBanding 2-го бита регистра RCC_APB2ENR
+				2*4                     @ вычисляем адрес для BitBanding 2-го бита регистра RCC_APB2ENR
 	mov		r1, #1						@ включаем тактирование порта A (во 2-й бит RCC_APB2ENR пишем '1`)
 	str 	r1, [r0]					@ загружаем это значение
 
@@ -74,9 +137,75 @@ Reset_Handler:
     str		r2, [r0]					@ загрузить результат в регистр настройки порта
 
     ldr		r0, =GPIOA_BSRR				@ адрес порта выходных сигналов
-
+	*/
 loop:									@ Бесконечный цикл
-	ldr 	r1, =GPIO_BSRR_BS5			@ устанавливаем вывод в '1'
+
+	LDR R0, =GPIOC_IDR //адрес регистра состояний стр. 172
+	LDR R1, [R0] //значение
+	TST R1, #0x08 //проверяем третий порт
+	BEQ button_pressed3 //если состояние 1, то переходим в button_pressed
+	TST R1, #0x04 //проверяем третий порт
+	BEQ button_pressed2
+	TST R1, #0x02 //проверяем третий порт
+	BEQ button_pressed1
+	TST R1, #0x01 //проверяем третий порт
+	BEQ button_pressed0
+	B loop
+
+button_pressed3:
+	LDR R0, =GPIOA_ODR
+	LDR R1, [R0]
+	//EOR R1, R1, #0x010 //5 пин перевернуть
+	//STR R1, [R0]
+	LDR	r1, =GPIO_BSRR_BR5
+	STR R1, [R0]
+	BL delay3
+	LDR R1, =GPIO_BSRR_BS5
+	STR R1, [R0]
+	BL delay3
+	B loop
+
+button_pressed2:
+	LDR R0, =GPIOA_ODR
+	LDR R1, [R0]
+	//EOR R1, R1, #0x010 //5 пин перевернуть
+	//STR R1, [R0]
+	LDR	r1, =GPIO_BSRR_BR5
+	STR R1, [R0]
+	BL delay2
+	LDR R1, =GPIO_BSRR_BS5
+	STR R1, [R0]
+	BL delay2
+	B loop
+
+button_pressed1:
+	LDR R0, =GPIOA_ODR
+	LDR R1, [R0]
+	//EOR R1, R1, #0x010 //5 пин перевернуть
+	//STR R1, [R0]
+	LDR	r1, =GPIO_BSRR_BR5
+	STR R1, [R0]
+	BL delay1
+	LDR R1, =GPIO_BSRR_BS5
+	STR R1, [R0]
+	BL delay1
+	B loop
+
+button_pressed0:
+	LDR R0, =GPIOA_ODR
+	LDR R1, [R0]
+	//EOR R1, R1, #0x010 //5 пин перевернуть
+	//STR R1, [R0]
+	LDR	r1, =GPIO_BSRR_BR5
+	STR R1, [R0]
+	BL delay0
+	LDR R1, =GPIO_BSRR_BS5
+	STR R1, [R0]
+	BL delay0
+	B loop
+
+
+	/*ldr 	r1, =GPIO_BSRR_BS5			@ устанавливаем вывод в '1'
 	str 	r1, [r0]					@ загружаем в порт
 
 	bl		delay						@ задержка
@@ -87,16 +216,47 @@ loop:									@ Бесконечный цикл
 	bl		delay						@ задержка
 
 	b 		loop						@ возвращаемся к началу цикла
+	*/
 
-delay:									@ Подпрограмма задержки
+delay3:									@ Подпрограмма задержки
 	push	{r0}						@ Загружаем в стек R0, т.к. его значение будем менять
-	ldr		r0, =0xFFFFF					@ псевдоинструкция Thumb (загрузить константу в регистр)
-delay_loop:
+	ldr		r0, =fourth					@ псевдоинструкция Thumb (загрузить константу в регистр)
+delay_loop3:
 	subs	r0, #1						@ SUB с установкой флагов результата
 	it 		NE
-	bne		delay_loop					@ переход, если Z==0 (результат вычитания не равен нулю)
+	bne		delay_loop3					@ переход, если Z==0 (результат вычитания не равен нулю)
 	pop		{r0}						@ Выгружаем из стека R0
 	bx		lr							@ выход из подпрограммы (переход к адресу в регистре LR - вершина стека)
+
+delay2:
+	push	{r0}
+	ldr		r0, =third
+delay_loop2:
+	subs	r0, #1
+	it 		NE
+	bne		delay_loop2
+	pop		{r0}
+	bx		lr
+
+delay1:
+	push	{r0}
+	ldr		r0, =second
+delay_loop1:
+	subs	r0, #1
+	it 		NE
+	bne		delay_loop1
+	pop		{r0}
+	bx		lr
+
+delay0:
+	push	{r0}
+	ldr		r0, =first
+delay_loop0:
+	subs	r0, #1
+	it 		NE
+	bne		delay_loop0
+	pop		{r0}
+	bx		lr
 
 
   .size Reset_Handler, .-Reset_Handler
